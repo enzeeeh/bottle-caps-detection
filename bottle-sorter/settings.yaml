@@ -1,0 +1,24 @@
+dataset:
+  path: "./data"
+  train_split: 0.8
+
+training:
+  epochs: 100
+  batch_size: 16
+  lr: 0.001
+  image_size: 640
+  device: "cuda"
+
+model:
+  arch: "yolov8n"
+  num_classes: 3
+  conf_threshold: 0.25
+  iou_threshold: 0.45
+
+logging:
+  wandb_project: "bottle-sorter"
+  output_dir: "runs"
+
+inference:
+  device: "cpu"
+  img_size: 640

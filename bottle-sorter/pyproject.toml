@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "bottle-sorter"
+version = "0.1.0"
+description = "Real-time bottle cap detection and sorting using YOLOv8."
+authors = ["Your Name <your.email@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+torch = "*"
+ultralytics = "*"
+typer = "*"
+pillow = "*"
+pyyaml = "*"
+albumentations = "*"
+wandb = "*"
+onnxruntime = "*"
+tensorrt = "*"
+
+[tool.poetry.dev-dependencies]
+pytest = "*"
+black = "*"
+isort = "*"
+pylint = "*"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
