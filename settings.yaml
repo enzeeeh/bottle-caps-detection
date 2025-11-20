@@ -1,24 +1,66 @@
+# Bottle Caps Detection - 3 Color Classification
+# Task Configuration File
+
 dataset:
-  path: "./data"
+  path: "./data/train/images"  # Point to actual images directory
   train_split: 0.8
 
 training:
-  epochs: 100
-  batch_size: 16
-  lr: 0.001
+  epochs: 50
+  batch_size: 8
+  lr: 0.01
   image_size: 640
-  device: "cuda"
+  device: "cpu"
+  checkpoint_dir: "runs/train"
 
 model:
   arch: "yolov8n"
-  num_classes: 3
+  num_classes: 3  # Updated for 3-color classification
   conf_threshold: 0.25
   iou_threshold: 0.45
 
+# WandB Configuration for Public Model Tracking
+wandb:
+  project_name: "bottle-caps-3color-detection"
+  entity: "TeamEnjin"  # Replace with your WandB username
+  public: true  # Make runs publicly accessible
+  job_type: "training"
+  notes: "3-color bottle cap detection using YOLOv8 with public tracking"
+  tags:
+    - "yolov8"
+    - "bottle-caps"
+    - "object-detection"
+    - "3-color-classification"
+    - "computer-vision"
+    - "public-model"
+  config_include:
+    - "model"
+    - "train"
+    - "dataset"
+
 logging:
-  wandb_project: "bottle-sorter"
   output_dir: "runs"
 
 inference:
   device: "cpu"
   img_size: 640
+
+# Data processing
+data:
+  samples_dir: "sample"
+  prepared_images_dir: "data/prepared"
+
+# Pipeline configuration
+pipeline:
+  export_dir: "runs/export"
+
+# Training configuration (for compatibility)
+train:
+  epochs: 50
+  batch_size: 8
+  lr: 0.01
+  lr_step: 20
+  lr_gamma: 0.1
+  device: "cpu"
+  num_workers: 2
+  checkpoint_dir: "runs/train"

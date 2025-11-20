@@ -1,46 +1,92 @@
-ARG BASE_IMAGE=python:3.10-slim
-FROM ${BASE_IMAGE} as base
+# Bottle Caps Detection - 3 Color Classification
+# Multi-stage Docker build for production deployment
 
-LABEL maintainer=""
-ENV PYTHONUNBUFFERED=1 \
-	POETRY_VIRTUALENVS_CREATE=false
+# Stage 1: Build stage
+FROM python:3.10-slim as builder
 
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set work directory
 WORKDIR /app
 
-# Install system dependencies commonly required for computer vision + builds
-RUN apt-get update \
-	&& apt-get install -y --no-install-recommends \
-	   build-essential \
-	   git \
-	   curl \
-	   ca-certificates \
-	   libgl1 \
-	   libsm6 \
-	   libxext6 \
-	   ffmpeg \
-	&& rm -rf /var/lib/apt/lists/*
+# Copy dependency files
+COPY pyproject.toml requirements.txt ./
 
-# Install Poetry and project dependencies
-COPY pyproject.toml poetry.lock* /app/
-RUN pip install --no-cache-dir poetry \
-	&& poetry install --no-interaction --no-ansi --no-dev
+# Install Python dependencies
+RUN pip install --upgrade pip && \
+    pip install poetry && \
+    poetry config virtualenvs.create false && \
+    poetry install --no-dev --no-interaction --no-ansi
 
-# password Unix user account enzimuzakki; 62c9d33a-2bc0-407f-af18-4685c678d0b9
-# Copy application source
-COPY . /app/
+# Stage 2: Production stage
+FROM python:3.10-slim
 
-# Default entrypoint uses the `bsort` console script provided by the package
-ENTRYPOINT ["bsort"]
-CMD ["infer", "--config", "settings.yaml", "--image", "sample.jpg"]
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV MODEL_PATH=/app/models
+ENV DATA_PATH=/app/data
 
-# Healthcheck: verify the CLI is installed and runnable
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD bsort --help || exit 1
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
 
-############################################################
-# Notes for GPU / CUDA builds:
-# - To build a GPU image, set BUILD_ARG BASE_IMAGE to a CUDA-enabled Python image
-#   Example: docker build --build-arg BASE_IMAGE=nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 -t bsort:gpu .
-# - You will also need to install the matching CUDA / cuDNN wheel packages for PyTorch/onnxruntime/tensorrt
-# - Alternatively, use NVIDIA's prebuilt PyTorch containers as the base image.
-############################################################
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash bsort
+
+# Set work directory
+WORKDIR /app
+
+# Copy Python packages from builder stage
+COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy application code
+COPY --chown=bsort:bsort . .
+
+# Create necessary directories
+RUN mkdir -p /app/runs /app/models /app/outputs && \
+    chown -R bsort:bsort /app
+
+# Switch to non-root user
+USER bsort
+
+# Install bsort package
+RUN pip install -e .
+
+# Expose port for potential API service
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import bsort; print('OK')" || exit 1
+
+# Default command - shows help
+CMD ["bsort", "--help"]
+
+# Example usage commands:
+# docker build -t bottle-caps-detection .
+# docker run -it bottle-caps-detection bsort train --config settings.yaml
+# docker run -v $(pwd)/data:/app/data -it bottle-caps-detection bsort infer --config settings.yaml --image sample.jpg

@@ -1,0 +1,8 @@
+# Bottle Caps Detection Dataset - 3 Color Classification
+path: D:\project-portofolio\bottle-caps-detection\data
+train: train/images
+val: val/images
+
+# Classes
+nc: 3  # number of classes
+names: ['light_blue', 'dark_blue', 'others']  # class names

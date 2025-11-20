@@ -1,7 +1,7 @@
 """
 YOLO dataset loader and label remapping by color for bottle-sorter.
 """
-from typing import List
+from typing import List, Tuple
 import os
 import glob
 import shutil
@@ -10,6 +10,10 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import torch
+from torch.utils.data import Dataset
+from PIL import Image
+import torchvision.transforms as transforms
 
 from bsort.config import DatasetConfig
 
@@ -75,7 +79,7 @@ def remap_label_by_color(image: np.ndarray, bbox_yolo: List[float]) -> int:
     return 2
 
 
-def process_yolo_annotations(cfg: DatasetConfig, split: str = "all") -> None:
+def prepare_yolo_annotations(cfg: DatasetConfig, split: str = "all") -> None:
     """Read YOLO annotations from `cfg.path`, remap labels by color, and write
     a YOLO-ready dataset in `{cfg.path}/images/{train|val}` and
     `{cfg.path}/labels/{train|val}`.
@@ -174,4 +178,80 @@ def process_yolo_annotations(cfg: DatasetConfig, split: str = "all") -> None:
                 f.write(l)
 
     logger.info(f"Dataset preparation complete. Output under: {root / 'images'} and {root / 'labels'}")
+
+
+class YOLODataset(Dataset):
+    """Simple YOLO dataset for training."""
+    
+    def __init__(self, images_dir: Path, labels_dir: Path, img_size: int = 640):
+        self.images_dir = Path(images_dir)
+        self.labels_dir = Path(labels_dir)
+        self.img_size = img_size
+        
+        # Get all image files
+        exts = ["*.jpg", "*.jpeg", "*.png", "*.bmp"]
+        self.image_paths = []
+        for ext in exts:
+            self.image_paths.extend(list(self.images_dir.glob(ext)))
+        
+        self.transform = transforms.Compose([
+            transforms.Resize((img_size, img_size)),
+            transforms.ToTensor(),
+        ])
+    
+    def __len__(self):
+        return len(self.image_paths)
+    
+    def __getitem__(self, idx):
+        img_path = self.image_paths[idx]
+        label_path = self.labels_dir / (img_path.stem + '.txt')
+        
+        # Load image
+        image = Image.open(img_path).convert('RGB')
+        image = self.transform(image)
+        
+        # Load labels (simplified - just return class indices)
+        labels = []
+        if label_path.exists():
+            with open(label_path, 'r') as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) >= 5:
+                        class_id = int(parts[0])
+                        labels.append(class_id)
+        
+        # Convert to tensor (simplified target for demo)
+        if labels:
+            target = torch.tensor(labels[0], dtype=torch.long)  # Use first label
+        else:
+            target = torch.tensor(0, dtype=torch.long)  # Default class
+            
+        return image, target
+
+
+def load_datasets(cfg: DatasetConfig) -> Tuple[Dataset, Dataset]:
+    """Load train and validation datasets after preparation.
+    
+    Args:
+        cfg: DatasetConfig with path information
+        
+    Returns:
+        Tuple of (train_dataset, val_dataset)
+    """
+    # For our case, cfg.path points to data/train/images
+    # We need to use the existing YOLO structure
+    base_path = Path(cfg.path).parent.parent  # Go up to 'data' directory
+    
+    train_images = base_path / 'train' / 'images'
+    train_labels = base_path / 'train' / 'labels'
+    val_images = base_path / 'val' / 'images'  
+    val_labels = base_path / 'val' / 'labels'
+    
+    print(f"Looking for train images in: {train_images}")
+    print(f"Looking for train labels in: {train_labels}")
+    
+    train_dataset = YOLODataset(train_images, train_labels)
+    val_dataset = YOLODataset(val_images, val_labels)
+    
+    return train_dataset, val_dataset
 
