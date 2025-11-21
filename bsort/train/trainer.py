@@ -20,8 +20,29 @@ from bsort.data.transforms import get_transforms
 from bsort.train.wandb_logger import WandbLogger
 
 
+def _ensure_directories(cfg) -> None:
+    """Create all necessary directories for organized file storage."""
+    directories = [
+        cfg.train.checkpoint_dir,
+        getattr(cfg.logging, 'output_dir', 'runs/logs'),
+        getattr(cfg.logging, 'wandb_dir', 'runs/wandb'),
+        getattr(cfg.pipeline, 'export_dir', 'runs/export'),
+        getattr(cfg.pipeline, 'models_dir', 'models'),
+        getattr(cfg.data, 'outputs_dir', 'outputs'),
+        os.path.join(getattr(cfg.data, 'outputs_dir', 'outputs'), 'visualizations'),
+        os.path.join(getattr(cfg.data, 'outputs_dir', 'outputs'), 'analysis'),
+    ]
+    
+    for directory in directories:
+        os.makedirs(directory, exist_ok=True)
+    
+    print(f"📁 Organized directories created/verified")
+
 def train_model(cfg, dry_run: bool = False) -> None:
     """Train YOLOv8 model using Ultralytics training API."""
+    # Ensure all directories exist
+    _ensure_directories(cfg)
+    
     # Load datasets
     from bsort.data.dataset_builder import load_datasets
     train_dataset, val_dataset = load_datasets(cfg.dataset)

@@ -35,6 +35,7 @@ class WandbConfig:
     notes: str = ""
     tags: list = None
     config_include: list = None
+    api_key: str = None
 
     def __post_init__(self):
         if self.tags is None:
@@ -45,16 +46,19 @@ class WandbConfig:
 @dataclass
 class LoggingConfig:
     output_dir: str
+    wandb_dir: str = "runs/wandb"
 
 @dataclass
 class InferenceConfig:
     device: str
     img_size: int
+    model_dir: str = "models"
 
 @dataclass
 class DataConfig:
     prepared_images_dir: str
     samples_dir: str
+    outputs_dir: str = "outputs"
 
 @dataclass
 class TrainConfig:
@@ -70,6 +74,7 @@ class TrainConfig:
 @dataclass
 class PipelineConfig:
     export_dir: str
+    models_dir: str = "models"
 
 @dataclass
 class Config:

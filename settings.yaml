@@ -22,8 +22,9 @@ model:
 # WandB Configuration for Public Model Tracking
 wandb:
   project_name: "bottle-caps-3color-detection"
-  entity: "TeamEnjin"  # Replace with your WandB username
-  public: true  # Make runs publicly accessible
+  entity: "TeamEnjin" 
+  api_key: "f0caacfb6a46237f9ecdc4c4ffa37b26eb849fa9"  
+  public: true  
   job_type: "training"
   notes: "3-color bottle cap detection using YOLOv8 with public tracking"
   tags:
@@ -39,20 +40,24 @@ wandb:
     - "dataset"
 
 logging:
-  output_dir: "runs"
+  output_dir: "runs/logs"
+  wandb_dir: "runs/wandb"
 
 inference:
   device: "cpu"
   img_size: 640
+  model_dir: "models"
 
 # Data processing
 data:
   samples_dir: "sample"
   prepared_images_dir: "data/prepared"
+  outputs_dir: "outputs"
 
 # Pipeline configuration
 pipeline:
   export_dir: "runs/export"
+  models_dir: "models"
 
 # Training configuration (for compatibility)
 train:

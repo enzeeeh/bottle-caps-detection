@@ -21,7 +21,16 @@ class WandbLogger:
         self.cfg = cfg
         self.run = None
         self.model_artifact = None
-        self.enabled = "WANDB_API_KEY" in os.environ or os.path.exists(os.path.expanduser("~/.netrc"))
+        
+        # Check for API key in multiple places
+        wandb_config = getattr(cfg, 'wandb', None)
+        config_api_key = getattr(wandb_config, 'api_key', None) if wandb_config else None
+        
+        self.enabled = (
+            "WANDB_API_KEY" in os.environ or 
+            os.path.exists(os.path.expanduser("~/.netrc")) or
+            (config_api_key and config_api_key != "your-wandb-api-key-here")
+        )
         
     def start_run(self) -> None:
         """Start a new WandB run with public visibility and comprehensive tracking."""
@@ -34,6 +43,20 @@ class WandbLogger:
             if not wandb_config:
                 print("⚠️ WandB configuration not found in settings.yaml")
                 return
+            
+            # Set API key from config if provided
+            config_api_key = getattr(wandb_config, 'api_key', None)
+            if config_api_key and config_api_key != "your-wandb-api-key-here":
+                os.environ['WANDB_API_KEY'] = config_api_key
+                print("🔑 Using API key from settings.yaml")
+            
+            # Set organized WandB directory
+            logging_config = getattr(self.cfg, 'logging', None)
+            if logging_config and hasattr(logging_config, 'wandb_dir'):
+                wandb_dir = logging_config.wandb_dir
+                os.makedirs(wandb_dir, exist_ok=True)
+                os.environ['WANDB_DIR'] = wandb_dir
+                print(f"📁 WandB logs will be saved to: {wandb_dir}")
             
             # Prepare comprehensive configuration
             run_config = self._prepare_run_config()
@@ -97,13 +120,16 @@ class WandbLogger:
         except Exception as e:
             logger.warning(f"Failed to log metrics to WandB: {e}")
     
-    def log_model_artifact(self, model_path: str, epoch: int, metrics: Dict[str, float], is_best: bool = False) -> None:
+    def log_model_artifact(self, model_path: str, model_name: str = None, version: str = None, metadata: Dict = None, epoch: int = None, metrics: Dict[str, float] = None, is_best: bool = False) -> None:
         """Log model as artifact with versioning and metadata.
         
         Args:
             model_path: Path to the saved model
-            epoch: Training epoch number
-            metrics: Model performance metrics
+            model_name: Name for the model artifact
+            version: Version tag for the model
+            metadata: Additional metadata for the model
+            epoch: Training epoch number (for backward compatibility)
+            metrics: Model performance metrics (for backward compatibility)
             is_best: Whether this is the best model so far
         """
         if not self.run:
@@ -111,19 +137,39 @@ class WandbLogger:
             
         try:
             # Create model artifact with comprehensive metadata
-            artifact_name = "bottle-caps-model"
+            artifact_name = model_name or "bottle-caps-model"
+            
+            # Prepare metadata
+            artifact_metadata = {
+                "framework": "YOLOv8",
+                "task": "object_detection",
+                "classes": ["red", "green", "blue"],
+                "is_best": is_best,
+            }
+            
+            # Add epoch info if provided
+            if epoch is not None:
+                artifact_metadata["epoch"] = epoch
+                
+            # Add metrics if provided
+            if metrics:
+                artifact_metadata.update(metrics)
+                
+            # Add custom metadata if provided
+            if metadata:
+                artifact_metadata.update(metadata)
+            
+            description = f"Bottle caps detection model"
+            if epoch is not None:
+                description += f" - Epoch {epoch}"
+            if version:
+                description += f" - {version}"
+            
             artifact = wandb.Artifact(
                 name=artifact_name,
-                type="model",
-                description=f"Bottle caps detection model - Epoch {epoch}",
-                metadata={
-                    "epoch": epoch,
-                    "framework": "YOLOv8",
-                    "task": "object_detection",
-                    "classes": ["red", "green", "blue"],
-                    "is_best": is_best,
-                    **metrics
-                }
+                type="model", 
+                description=description,
+                metadata=artifact_metadata
             )
             
             # Add model file to artifact
@@ -131,14 +177,20 @@ class WandbLogger:
                 artifact.add_file(model_path, name="model.pt")
                 
                 # Log the artifact with appropriate alias
-                aliases = ["latest", f"epoch_{epoch}"]
+                aliases = ["latest"]
+                if epoch is not None:
+                    aliases.append(f"epoch_{epoch}")
+                if version:
+                    aliases.append(version)
                 if is_best:
                     aliases.append("best")
                     
                 self.run.log_artifact(artifact, aliases=aliases)
                 
-                logger.info(f"📦 Model artifact logged: {artifact_name} (Epoch {epoch})")
-                print(f"🏆 Best model logged!" if is_best else f"📊 Model checkpoint logged (Epoch {epoch})")
+                epoch_info = f" (Epoch {epoch})" if epoch is not None else ""
+                version_info = f" ({version})" if version else ""
+                logger.info(f"📦 Model artifact logged: {artifact_name}{epoch_info}{version_info}")
+                print(f"🏆 Best model logged!" if is_best else f"📊 Model checkpoint logged{epoch_info}{version_info}")
                 
         except Exception as e:
             logger.warning(f"Failed to log model artifact: {e}")
@@ -273,8 +325,10 @@ class WandbLogger:
         print()
         print("1. Create account: https://wandb.ai/signup")
         print("2. Get API key: https://wandb.ai/authorize")
-        print("3. Set API key: wandb login")
-        print("   Or set: $env:WANDB_API_KEY='your-key-here'")
+        print("3. Set API key using one of these methods:")
+        print("   • Add to settings.yaml: api_key: 'your-key-here'")
+        print("   • Run: wandb login")
+        print("   • Set env: $env:WANDB_API_KEY='your-key-here'")
         print()
         print("📊 Benefits of public tracking:")
         print("   • Share model results with public URLs")

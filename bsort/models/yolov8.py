@@ -43,19 +43,42 @@ class YOLOv8Wrapper:
         Returns:
             An instance of `ultralytics.YOLO`.
         """
+        import os
+        
         p = Path(arch_or_checkpoint)
         try:
             if p.exists():
                 logger.info(f"Loading YOLO model from checkpoint: {arch_or_checkpoint}")
                 return YOLO(str(p))
+            
             # treat as architecture name (e.g., 'yolov8n')
             arch_name = arch_or_checkpoint
+            
+            # Check if model exists in models directory first
+            models_dir = Path("models")
+            models_dir.mkdir(exist_ok=True)
+            model_file = models_dir / f"{arch_name}.pt"
+            
+            if model_file.exists():
+                logger.info(f"Loading YOLO model from models directory: {model_file}")
+                return YOLO(str(model_file))
+            
+            # If not found, load normally and then move to models directory
             if pretrained:
                 logger.info(f"Loading pretrained YOLO model: {arch_name}")
+                # Temporarily change to models directory to download there
+                original_cwd = os.getcwd()
+                try:
+                    os.chdir(models_dir)
+                    model = YOLO(arch_name)
+                    logger.info(f"✅ Model downloaded to models directory: {models_dir / f'{arch_name}.pt'}")
+                    return model
+                finally:
+                    os.chdir(original_cwd)
+            else:
+                # load architecture without weights
+                logger.info(f"Loading YOLO model by name (no pretrained weights requested): {arch_name}")
                 return YOLO(arch_name)
-            # load architecture without weights (Ultralytics API uses names or paths)
-            logger.info(f"Loading YOLO model by name (no pretrained weights requested): {arch_name}")
-            return YOLO(arch_name)
         except Exception as exc:
             logger.error(f"Failed to load YOLO model '{arch_or_checkpoint}': {exc}")
             raise
