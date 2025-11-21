@@ -322,15 +322,21 @@ $ bsort infer --config settings.yaml --image sample/raw-250110_dc_s001_b2_1.jpg
 
 ## 🧪 Testing
 
+**Current Status**: Basic validation through CLI commands and notebook analysis.
+
+**Future Development**: Comprehensive test suite planned with:
+- Unit tests for data processing and model components
+- Integration tests for CLI commands  
+- Performance benchmarks and regression tests
+
+**Manual Testing Available**:
 ```bash
-conda activate bottle-detect
+# Validate CLI functionality
+bsort --help
+bsort profile --config settings.yaml
 
-# Run all tests
-python -m pytest tests/ -v
-
-# Run specific test categories
-python -m pytest tests/test_api.py -v
-python -m pytest tests/test_training.py -v
+# Verify model performance
+# See notebook: Model_Development_and_Experimentation.ipynb
 ```
 
 ## 🤝 Contributing
